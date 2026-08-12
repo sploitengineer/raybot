@@ -57,26 +57,27 @@ MOCK_CONFIG = ClientConfig(
 def get_client_config() -> ClientConfig:
     return MOCK_CONFIG
 
-# --- Persistence for Leads and Tickets ---
-LEADS_FILE = "leads.json"
-TICKETS_FILE = "tickets.json"
+from email_service import send_notification_email
 
 def save_lead(name: str, contact: str, source: str):
-    leads = []
-    if os.path.exists(LEADS_FILE):
-        with open(LEADS_FILE, "r") as f:
-            leads = json.load(f)
-    leads.append({"name": name, "contact": contact, "source": source})
-    with open(LEADS_FILE, "w") as f:
-        json.dump(leads, f, indent=4)
-    print(f"Lead saved: {name} ({contact}) from {source}")
+    subject = f"🔔 New Lead Captured: {name}"
+    html = f"""
+    <h2>New Lead Captured</h2>
+    <p><strong>Name:</strong> {name}</p>
+    <p><strong>Contact:</strong> {contact}</p>
+    <p><strong>Source:</strong> {source}</p>
+    """
+    send_notification_email(subject, html)
+    print(f"Lead emailed: {name} ({contact}) from {source}")
 
 def save_ticket(name: str, contact: str, description: str):
-    tickets = []
-    if os.path.exists(TICKETS_FILE):
-        with open(TICKETS_FILE, "r") as f:
-            tickets = json.load(f)
-    tickets.append({"name": name, "contact": contact, "description": description})
-    with open(TICKETS_FILE, "w") as f:
-        json.dump(tickets, f, indent=4)
-    print(f"Ticket saved: {name} - {description}")
+    subject = f"🚨 New Ticket Request from {contact}"
+    html = f"""
+    <h2>New Customer Request</h2>
+    <p><strong>Name:</strong> {name}</p>
+    <p><strong>Contact:</strong> {contact}</p>
+    <p><strong>Message:</strong></p>
+    <p style="background: #f8f9fa; padding: 15px; border-radius: 5px;">{description}</p>
+    """
+    send_notification_email(subject, html)
+    print(f"Ticket emailed: {name} - {description}")
