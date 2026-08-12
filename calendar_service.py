@@ -74,8 +74,24 @@ def get_available_slots(staff_id: str, date_str: str) -> List[str]:
         return ["09:00 AM", "10:30 AM", "01:00 PM", "03:30 PM"]
 
     # For simplicity, returning fixed slots for now. 
-    # In a full production app, we would query the Free/Busy API.
-    return ["09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"]
+    all_slots = ["09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"]
+    
+    valid_slots = []
+    now = datetime.now()
+    is_today = (date_str == "today")
+    
+    for slot in all_slots:
+        try:
+            t = datetime.strptime(slot, "%I:%M %p")
+            if is_today:
+                if t.hour > now.hour or (t.hour == now.hour and t.minute > now.minute):
+                    valid_slots.append(slot)
+            else:
+                valid_slots.append(slot)
+        except:
+            valid_slots.append(slot)
+            
+    return valid_slots
 
 def book_appointment(service_id: str, staff_id: str, date_str: str, time_str: str, name: str, email: str, tentative: bool = False) -> bool:
     """

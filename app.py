@@ -117,11 +117,17 @@ def handle_book_staff(to: str, session: UserSession, config):
         buttons.insert(0, (f"stf_{st.id}", st.name))
     send_interactive_buttons(to, "Who would you like to see?", buttons)
 
+from datetime import datetime, timedelta
+
 def handle_book_date(to: str, session: UserSession, config):
     session.state = BOOK_APPT_DATE
+    
+    today_str = datetime.now().strftime("%d %b")
+    tomorrow_str = (datetime.now() + timedelta(days=1)).strftime("%d %b")
+    
     send_interactive_buttons(to, "When would you like to come in?", [
-        ("date_today", "Today"),
-        ("date_tomorrow", "Tomorrow")
+        ("date_today", f"Today - {today_str}"),
+        ("date_tomorrow", f"Tomorrow - {tomorrow_str}")
     ])
 
 def handle_book_time(to: str, session: UserSession, config):
