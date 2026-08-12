@@ -13,7 +13,7 @@ from calendar_service import (
 from state_machine import (
     get_session, reset_session, UserSession,
     GREETING, MAIN_MENU,
-    BOOK_APPT_SERVICE, BOOK_APPT_STAFF, BOOK_APPT_DATE, BOOK_APPT_TIME, BOOK_APPT_CONTACT,
+    BOOK_APPT_SERVICE, BOOK_APPT_STAFF, BOOK_APPT_DATE, BOOK_APPT_TIME, BOOK_APPT_NAME, BOOK_APPT_EMAIL,
     QUOTE_DESCRIBE, QUOTE_PHOTO, QUOTE_PENCIL_IN,
     FAQ_MENU, FAQ_ANSWER,
     TALK_PERSON_CONTACT, TALK_PERSON_DESCRIBE,
@@ -118,27 +118,45 @@ def handle_book_staff(to: str, session: UserSession, config):
     send_interactive_buttons(to, "Who would you like to see?", buttons)
 
 def handle_book_date(to: str, session: UserSession, config):
+    session.state = BOOK_APPT_DATE
+    send_interactive_buttons(to, "When would you like to come in?", [
+        ("date_today", "Today"),
+        ("date_tomorrow", "Tomorrow")
+    ])
+
+def handle_book_time(to: str, session: UserSession, config):
     session.state = BOOK_APPT_TIME
-    slots = get_available_slots(session.selected_staff_id, "today")
+    slots = get_available_slots(session.selected_staff_id, session.selected_date)
     if not slots:
-        send_interactive_buttons(to, "Looks like we are fully booked. Want to try another day or join waitlist?", [
+        send_interactive_buttons(to, f"Looks like we are fully booked on {session.selected_date}. Want to try another day or join waitlist?", [
             ("waitlist", "Join waitlist"), ("menu_main", "Main Menu")
         ])
         return
 
     rows = [{"id": f"time_{slot}", "title": slot} for slot in slots]
-    send_interactive_list(to, "Here are the next available times:", "Select Time", [
+    send_interactive_list(to, f"Here are the next available times for {session.selected_date}:", "Select Time", [
         {"title": "Available Times", "rows": rows}
     ])
 
-def handle_book_contact(to: str, session: UserSession, config):
-    session.state = BOOK_APPT_CONTACT
-    send_whatsapp_message(to, "Almost done! Can I get your name and phone number/email to confirm the booking?")
+def handle_book_name(to: str, session: UserSession, config):
+    session.state = BOOK_APPT_NAME
+    send_whatsapp_message(to, "Almost done! Can I get your full name to confirm the booking?")
+
+def handle_book_email(to: str, session: UserSession, config):
+    session.state = BOOK_APPT_EMAIL
+    send_whatsapp_message(to, f"Thanks {session.booking_name}! What is your email address so we can send you the calendar invite?")
 
 def handle_confirm_booking(to: str, session: UserSession, config):
-    book_appointment(session.selected_service_id, session.selected_staff_id, "today", session.selected_time, "User", session.booking_contact)
+    success = book_appointment(session.selected_service_id, session.selected_staff_id, session.selected_date, session.selected_time, session.booking_name, session.booking_contact)
     service_name = next((s.name for s in config.services if s.id == session.selected_service_id), "Service")
-    send_whatsapp_message(to, f"✅ You're booked in for {service_name} at {session.selected_time}. We've sent a confirmation. See you then!")
+    
+    if success:
+        send_whatsapp_message(to, f"✅ You're booked in for {service_name} on {session.selected_date.capitalize()} at {session.selected_time}. We've sent a calendar invite to {session.booking_contact}. See you then!")
+        # Since they booked, don't pester them for lead capture later
+        session.has_asked_lead_capture = True
+    else:
+        send_whatsapp_message(to, f"❌ Oops! Something went wrong while saving your calendar event. We will contact you shortly to confirm.")
+        
     # Follow-up offer
     session.state = MAIN_MENU
     send_interactive_buttons(to, "Anything else I can help with?", [
@@ -256,10 +274,16 @@ def handle_webhook():
                 elif selected_id.startswith("stf_") or selected_id == "staff_no_pref":
                     session.selected_staff_id = selected_id.split("_")[1] if selected_id != "staff_no_pref" else "any"
                     handle_book_date(sender, session, config)
+                elif selected_id.startswith("date_"):
+                    session.selected_date = selected_id.split("_")[1]
+                    handle_book_time(sender, session, config)
                 elif selected_id.startswith("time_"):
                     session.selected_time = selected_id.split("_")[1]
-                    handle_book_contact(sender, session, config)
-                elif session.state == BOOK_APPT_CONTACT:
+                    handle_book_name(sender, session, config)
+                elif session.state == BOOK_APPT_NAME:
+                    session.booking_name = text
+                    handle_book_email(sender, session, config)
+                elif session.state == BOOK_APPT_EMAIL:
                     session.booking_contact = text
                     handle_confirm_booking(sender, session, config)
                 

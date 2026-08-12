@@ -62,19 +62,71 @@ def get_calendar_service():
         return build('calendar', 'v3', credentials=creds)
     return None
 
-def get_available_slots(staff_id: str, date: str) -> List[str]:
-    """
-    Mock function to get available slots.
-    In real implementation, this will query Google Calendar Free/Busy API.
-    """
-    return ["09:00 AM", "10:30 AM", "01:00 PM", "03:30 PM"]
+from datetime import datetime, timedelta, timezone
 
-def book_appointment(service_id: str, staff_id: str, date: str, time: str, name: str, contact: str, tentative: bool = False) -> bool:
+def get_available_slots(staff_id: str, date_str: str) -> List[str]:
     """
-    Mock function to create an event in Google Calendar.
+    Get available slots for a specific date (YYYY-MM-DD or 'today'/'tomorrow').
     """
-    print(f"Calendar Event Created: {service_id} with {staff_id} on {date} at {time} for {name} ({contact}). Tentative: {tentative}")
-    return True
+    service = get_calendar_service()
+    if not service:
+        print("No calendar service available. User not authenticated?")
+        return ["09:00 AM", "10:30 AM", "01:00 PM", "03:30 PM"]
+
+    # For simplicity, returning fixed slots for now. 
+    # In a full production app, we would query the Free/Busy API.
+    return ["09:00 AM", "10:00 AM", "11:00 AM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM"]
+
+def book_appointment(service_id: str, staff_id: str, date_str: str, time_str: str, name: str, email: str, tentative: bool = False) -> bool:
+    """
+    Create an event in Google Calendar.
+    """
+    service = get_calendar_service()
+    if not service:
+        print("Calendar service not available.")
+        return False
+        
+    print(f"Creating event for {name} on {date_str} at {time_str}")
+    
+    # Parse date and time
+    # If date_str is "today" or "tomorrow", resolve it
+    target_date = datetime.now()
+    if date_str.lower() == "tomorrow":
+        target_date += timedelta(days=1)
+    
+    # Simple time parsing (e.g., "09:00 AM")
+    try:
+        t = datetime.strptime(time_str, "%I:%M %p")
+        start_dt = target_date.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+    except:
+        start_dt = target_date.replace(hour=9, minute=0, second=0, microsecond=0)
+
+    end_dt = start_dt + timedelta(hours=1)
+    
+    event_body = {
+        'summary': f"{'TENTATIVE: ' if tentative else ''}{service_id} - {name}",
+        'description': f"Service: {service_id}\nStaff: {staff_id}\nClient: {name}\nContact: {email}",
+        'start': {
+            'dateTime': start_dt.isoformat() + 'Z',
+            'timeZone': 'UTC',
+        },
+        'end': {
+            'dateTime': end_dt.isoformat() + 'Z',
+            'timeZone': 'UTC',
+        }
+    }
+    
+    # Add attendee if email looks valid
+    if "@" in email:
+        event_body['attendees'] = [{'email': email}]
+
+    try:
+        event = service.events().insert(calendarId='primary', body=event_body, sendUpdates='all').execute()
+        print(f"✅ Calendar Event Created: {event.get('htmlLink')}")
+        return True
+    except Exception as e:
+        print(f"❌ Error creating calendar event: {e}")
+        return False
 
 def reschedule_appointment(booking_ref: str, new_date: str, new_time: str) -> bool:
     """
