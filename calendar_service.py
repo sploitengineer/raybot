@@ -26,25 +26,30 @@ def get_google_auth_config():
 
 def get_authorization_url() -> str:
     config = get_google_auth_config()
-    # If redirect URIs contains empty string, filter it out
-    config["web"]["redirect_uris"] = [uri for uri in config["web"]["redirect_uris"] if uri]
+    config["web"]["redirect_uris"] = [uri for uri in config["web"]["redirect_uris"] if uri and not uri.endswith("/oauth2callback")]
+    
+    # Use Render URL if available, otherwise localhost
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+    selected_redirect = f"{render_url}/oauth2callback" if render_url else "http://localhost:5000/oauth2callback"
     
     flow = Flow.from_client_config(
         config,
         scopes=SCOPES,
-        redirect_uri=config["web"]["redirect_uris"][0]
+        redirect_uri=selected_redirect
     )
     auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
     return auth_url
 
 def fetch_and_save_tokens(code: str):
     config = get_google_auth_config()
-    config["web"]["redirect_uris"] = [uri for uri in config["web"]["redirect_uris"] if uri]
+    
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+    selected_redirect = f"{render_url}/oauth2callback" if render_url else "http://localhost:5000/oauth2callback"
     
     flow = Flow.from_client_config(
         config,
         scopes=SCOPES,
-        redirect_uri=config["web"]["redirect_uris"][0]
+        redirect_uri=selected_redirect
     )
     flow.fetch_token(code=code)
     credentials = flow.credentials
