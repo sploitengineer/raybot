@@ -26,7 +26,7 @@ def get_google_auth_config():
 
 def get_authorization_url() -> str:
     config = get_google_auth_config()
-    config["web"]["redirect_uris"] = [uri for uri in config["web"]["redirect_uris"] if uri and not uri.endswith("/oauth2callback")]
+    config["web"]["redirect_uris"] = [uri for uri in config["web"]["redirect_uris"] if uri]
     
     # Use Render URL if available, otherwise localhost
     render_url = os.getenv("RENDER_EXTERNAL_URL")
